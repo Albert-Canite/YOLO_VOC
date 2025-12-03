@@ -25,24 +25,26 @@ def bbox_iou(box1: torch.Tensor, box2: torch.Tensor) -> torch.Tensor:
 def yolo_loss(pred: torch.Tensor, targets: List[dict], anchors: torch.Tensor, num_classes: int, img_size: int):
     """Compute simplified YOLO loss (MSE for box, BCE for obj/class)."""
     device = pred.device
+    dtype = pred.dtype
     grid_size = pred.size(2)
-    stride = img_size / grid_size
+    stride = torch.tensor(img_size / grid_size, device=device, dtype=dtype)
+    anchors = anchors.to(device=device, dtype=dtype)
 
-    obj_mask = torch.zeros_like(pred[..., 0], device=device)
-    noobj_mask = torch.ones_like(pred[..., 0], device=device)
-    tx = torch.zeros_like(pred[..., 0], device=device)
-    ty = torch.zeros_like(pred[..., 1], device=device)
-    tw = torch.zeros_like(pred[..., 2], device=device)
-    th = torch.zeros_like(pred[..., 3], device=device)
-    tcls = torch.zeros((*pred.shape[:4], num_classes), device=device)
+    obj_mask = torch.zeros_like(pred[..., 0], device=device, dtype=dtype)
+    noobj_mask = torch.ones_like(pred[..., 0], device=device, dtype=dtype)
+    tx = torch.zeros_like(pred[..., 0], device=device, dtype=dtype)
+    ty = torch.zeros_like(pred[..., 1], device=device, dtype=dtype)
+    tw = torch.zeros_like(pred[..., 2], device=device, dtype=dtype)
+    th = torch.zeros_like(pred[..., 3], device=device, dtype=dtype)
+    tcls = torch.zeros((*pred.shape[:4], num_classes), device=device, dtype=dtype)
 
     for batch_idx, target in enumerate(targets):
-        boxes = target["boxes"]
-        labels = target["labels"]
+        boxes = target["boxes"].to(device=device, dtype=dtype)
+        labels = target["labels"].to(device=device)
         if boxes.numel() == 0:
             continue
         boxes_xyxy = boxes
-        boxes_xywh = torch.zeros_like(boxes_xyxy, device=device)
+        boxes_xywh = torch.zeros_like(boxes_xyxy, device=device, dtype=dtype)
         boxes_xywh[:, 0] = (boxes_xyxy[:, 0] + boxes_xyxy[:, 2]) / 2
         boxes_xywh[:, 1] = (boxes_xyxy[:, 1] + boxes_xyxy[:, 3]) / 2
         boxes_xywh[:, 2] = boxes_xyxy[:, 2] - boxes_xyxy[:, 0]
