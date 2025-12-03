@@ -1,39 +1,48 @@
-# YOLO VOC Lightweight Detector
+# YOLO VOC Tiny (PyTorch)
 
-This repository implements a lightweight YOLO-style detector tailored for the Pascal VOC 2012 dataset. The code includes training, evaluation, and visualization utilities to monitor classification and bounding-box regression performance over time.
+This project implements a compact YOLO-style detector in **PyTorch** for Pascal VOC 2012. The pipeline includes data loading, training, evaluation, and visualization utilities to track both classification and bounding-box regression quality over time.
 
-## Setup
-1. Create a virtual environment and install dependencies:
-   ```bash
-   python -m venv .venv
-   source .venv/bin/activate
-   pip install -r requirements.txt
-   ```
-2. Make sure the Pascal VOC dataset is available locally at `E:/VOC` (default). Each split should contain `Annotations`, `ImageSets`, `JPEGImages`, `SegmentationClass`, and `SegmentationObject`.
+## Dataset
+- Default root: `E:/VOC` containing `VOC2012_train_val` and `VOC2012_test` with the standard `Annotations`, `ImageSets`, `JPEGImages`, `SegmentationClass`, and `SegmentationObject` folders.
+- Train split: `VOC2012_train_val`; validation split: `VOC2012_test` (configurable through CLI flags).
 
-## Training
-Run training with default hyper-parameters:
+## Installation
 ```bash
-PYTHONPATH=src python src/train.py --data-root E:/VOC --train-set VOC2012_train_val --val-set VOC2012_test
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
 ```
 
-Key outputs are stored under `runs/`:
-- `history.json`: epoch-wise loss and mAP@0.5 metrics.
-- `training_curves.png`: visualization of loss and mAP trends.
-- `visualizations/epoch_*.jpg`: qualitative predictions versus ground truth.
-- `tensorboard/`: TensorBoard event files for interactive metric tracking.
+> **No TensorFlow required**: the entire pipeline is built on PyTorch. If you previously installed an old `tensorflow` package and see errors such as `AttributeError: module 'tensorflow' has no attribute 'io'` when launching TensorBoard, simply uninstall TensorFlow (`pip uninstall -y tensorflow tensorflow-gpu`) and keep the lightweight `tensorboard` package that ships with the requirements.
 
-Resume training from a checkpoint:
+## Training
+```bash
+PYTHONPATH=src python src/train.py --data-root E:/VOC --train-set VOC2012_train_val --val-set VOC2012_test \
+  --batch-size 8 --epochs 60 --lr 1e-3
+```
+
+Key outputs under `runs/`:
+- `best.pt`: best-performing checkpoint (highest mAP@0.5).
+- `history.json`: epoch-level loss and validation metrics.
+- `training_curves.png`: loss and mAP@0.5 trends across epochs.
+- `visualizations/epoch_*.jpg`: qualitative predictions vs. ground truth on held-out samples.
+- `tensorboard/`: TensorBoard logs for interactive metric tracking.
+
+Resume training with:
 ```bash
 PYTHONPATH=src python src/train.py --resume runs/best.pt
 ```
 
-## Inference and Visualization
-`training_curves.png` and the qualitative `visualizations` folder summarize how the model improves during training. You can open TensorBoard for interactive metric inspection:
+Launch TensorBoard for live monitoring:
 ```bash
 PYTHONPATH=src tensorboard --logdir runs/tensorboard --port 6006
 ```
 
+## Model Highlights
+- Tiny CSP-inspired backbone with a single detection scale (13x13 grid by default).
+- Anchor-based target assignment and YOLO-style decoding with NMS filtering.
+- Metrics: mAP@0.5 plus training loss tracking for both classification and regression quality.
+
 ## Notes
-- All code comments and docstrings are written in English as required.
-- Default anchors and image size target a compact network suited for VOC resolution; adjust `src/yolo/config.py` for experimentation.
+- All inline comments and docstrings remain in English.
+- Adjust anchors, input resolution, or optimization settings in `src/yolo/config.py` for further experimentation.
