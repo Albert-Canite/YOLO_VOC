@@ -29,10 +29,10 @@ def prepare_dataloaders(cfg: TrainConfig):
         image_size=cfg.data.image_size,
         augment=True,
     )
-    test_ds = VOCDataset(
-        image_dir=cfg.data.test_image_dir,
-        annotation_dir=cfg.data.test_annotation_dir,
-        split_file=cfg.data.test_split_file,
+    val_ds = VOCDataset(
+        image_dir=cfg.data.val_image_dir,
+        annotation_dir=cfg.data.val_annotation_dir,
+        split_file=cfg.data.val_split_file,
         image_size=cfg.data.image_size,
         augment=False,
     )
@@ -43,14 +43,14 @@ def prepare_dataloaders(cfg: TrainConfig):
         num_workers=cfg.data.num_workers,
         collate_fn=detection_collate,
     )
-    test_loader = DataLoader(
-        test_ds,
+    val_loader = DataLoader(
+        val_ds,
         batch_size=cfg.data.batch_size,
         shuffle=False,
         num_workers=cfg.data.num_workers,
         collate_fn=detection_collate,
     )
-    return train_loader, test_loader
+    return train_loader, val_loader
 
 
 def save_checkpoint(model: TinyYOLO, optimizer: optim.Optimizer, epoch: int, save_dir: str):
@@ -125,12 +125,12 @@ def train(cfg: TrainConfig):
         weight_decay=cfg.optim.weight_decay,
     )
     scaler = amp.GradScaler(enabled=cfg.mixed_precision)
-    train_loader, test_loader = prepare_dataloaders(cfg)
+    train_loader, val_loader = prepare_dataloaders(cfg)
     history: Dict[str, List[float]] = {"train_loss": [], "map50": []}
 
     for epoch in range(1, cfg.optim.epochs + 1):
         train_loss = run_epoch(model, train_loader, optimizer, scaler, cfg, device, train=True)
-        map50 = evaluate(model, test_loader, cfg, device)
+        map50 = evaluate(model, val_loader, cfg, device)
         history["train_loss"].append(train_loss)
         history["map50"].append(map50)
         print(f"Epoch {epoch}/{cfg.optim.epochs} - loss: {train_loss:.4f} - mAP@50: {map50:.4f}")

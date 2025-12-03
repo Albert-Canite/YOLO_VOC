@@ -1,7 +1,7 @@
 # 项目报告（v1）
 
 ## 数据与目录
-- 数据路径默认为 `E:/VOC`，训练集 `VOC2012_train_val`，测试集 `VOC2012_test`，内部沿用官方 VOC 目录结构（Annotations、ImageSets/Main、JPEGImages 等）。
+- 数据路径默认为 `E:/VOC`，训练集与验证集均指向 `VOC2012_train_val`（训练列表使用 `trainval.txt`，验证列表使用 `val.txt`），内部沿用官方 VOC 目录结构（Annotations、ImageSets/Main、JPEGImages 等）。
 - 支持通过 `config.py` 或自定义 JSON 覆盖路径与超参数。
 
 ## 模型结构
@@ -25,7 +25,7 @@
 ## 可视化
 - `visualize.py`：
   - `plot_history` 生成训练过程曲线（loss 与 mAP）。
-  - `visualize_samples` 从测试集抽样绘制预测框与 GT 对比，输出 `pred_*.png` 与 `gt_*.png`。
+  - `visualize_samples` 从验证集抽样绘制预测框与 GT 对比，输出 `pred_*.png` 与 `gt_*.png`。
 - 运行示例：
   ```bash
   python visualize.py --history outputs/<run>/history.json \

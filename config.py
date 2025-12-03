@@ -7,7 +7,7 @@ from typing import List
 class DataConfig:
     root: str = "E:/VOC"
     train_split: str = "VOC2012_train_val"
-    test_split: str = "VOC2012_test"
+    val_split: str = "VOC2012_train_val"
     image_size: int = 416
     num_workers: int = 4
     batch_size: int = 8
@@ -25,16 +25,16 @@ class DataConfig:
         return f"{self.root}/{self.train_split}/ImageSets/Main/trainval.txt"
 
     @property
-    def test_image_dir(self) -> str:
-        return f"{self.root}/{self.test_split}/JPEGImages"
+    def val_image_dir(self) -> str:
+        return f"{self.root}/{self.val_split}/JPEGImages"
 
     @property
-    def test_annotation_dir(self) -> str:
-        return f"{self.root}/{self.test_split}/Annotations"
+    def val_annotation_dir(self) -> str:
+        return f"{self.root}/{self.val_split}/Annotations"
 
     @property
-    def test_split_file(self) -> str:
-        return f"{self.root}/{self.test_split}/ImageSets/Main/test.txt"
+    def val_split_file(self) -> str:
+        return f"{self.root}/{self.val_split}/ImageSets/Main/val.txt"
 
 
 @dataclass

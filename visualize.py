@@ -66,9 +66,9 @@ def visualize_samples(
     model = load_checkpoint(model, checkpoint_path)
     model.eval()
     dataset = VOCDataset(
-        image_dir=cfg.data.test_image_dir,
-        annotation_dir=cfg.data.test_annotation_dir,
-        split_file=cfg.data.test_split_file,
+        image_dir=cfg.data.val_image_dir,
+        annotation_dir=cfg.data.val_annotation_dir,
+        split_file=cfg.data.val_split_file,
         image_size=cfg.data.image_size,
         augment=False,
     )
