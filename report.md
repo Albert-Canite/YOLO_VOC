@@ -35,6 +35,10 @@ PYTHONPATH=src python src/train.py --data-root E:/VOC --train-set VOC2012_train_
 - 恢复训练：`--resume runs/best.pt`。
 - 监控：`tensorboard --logdir runs/tensorboard --port 6006`。
 
+### 环境提示
+- 全部代码基于 **PyTorch**，不依赖 TensorFlow。
+- 若本地曾安装过旧版 TensorFlow，并在启动 TensorBoard 时出现 `AttributeError: module 'tensorflow' has no attribute 'io'`，可直接卸载 TensorFlow（`pip uninstall -y tensorflow tensorflow-gpu`），保留 `requirements.txt` 中的轻量级 `tensorboard` 即可。
+
 ## 后续改进思路
 - 增加数据增强（颜色抖动、随机尺度、MixUp/CutMix）以提升泛化。
 - 引入多尺度检测头或更丰富的 anchor 设置，适配小目标。

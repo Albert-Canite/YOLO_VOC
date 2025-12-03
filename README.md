@@ -13,6 +13,8 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
+> **No TensorFlow required**: the entire pipeline is built on PyTorch. If you previously installed an old `tensorflow` package and see errors such as `AttributeError: module 'tensorflow' has no attribute 'io'` when launching TensorBoard, simply uninstall TensorFlow (`pip uninstall -y tensorflow tensorflow-gpu`) and keep the lightweight `tensorboard` package that ships with the requirements.
+
 ## Training
 ```bash
 PYTHONPATH=src python src/train.py --data-root E:/VOC --train-set VOC2012_train_val --val-set VOC2012_test \
