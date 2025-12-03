@@ -81,7 +81,7 @@ def predict(model: TinyYOLO, images: torch.Tensor, cfg: TrainConfig, device: tor
     model.eval()
     with torch.no_grad():
         pred, _ = model(images.to(device))
-        boxes, scores = decode_predictions(pred, model.anchors, cfg.model.num_classes, cfg.model.grid_size, cfg.data.image_size)
+        boxes, scores = decode_predictions(pred, model.anchors, cfg.model.num_classes, cfg.data.image_size)
     batch_predictions = []
     for b in range(images.size(0)):
         box = boxes[b]

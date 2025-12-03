@@ -22,11 +22,14 @@ class ConvBlock(nn.Module):
 class TinyYOLO(nn.Module):
     """Small YOLO network with a single detection head."""
 
-    def __init__(self, num_classes: int, anchors: torch.Tensor, grid_size: int = 13) -> None:
+    def __init__(self, num_classes: int, anchors: torch.Tensor, grid_size: int | None = None) -> None:
         super().__init__()
         self.num_classes = num_classes
         self.num_anchors = anchors.size(0)
         self.register_buffer("anchors", anchors)
+        # Grid size can be inferred from the feature map; keeping a user-provided
+        # value allows compatibility with saved configs while avoiding hardcoded
+        # reshaping that can mismatch the actual spatial size.
         self.grid_size = grid_size
 
         self.backbone = nn.Sequential(
@@ -53,19 +56,25 @@ class TinyYOLO(nn.Module):
         batch_size = x.shape[0]
         features = self.backbone(x)
         pred = self.det_head(features)
-        pred = pred.view(batch_size, self.num_anchors, 5 + self.num_classes, self.grid_size, self.grid_size)
+        grid_h, grid_w = pred.shape[2:]
+        pred = pred.view(batch_size, self.num_anchors, 5 + self.num_classes, grid_h, grid_w)
         pred = pred.permute(0, 1, 3, 4, 2).contiguous()
+        # Update cached grid_size to reflect the true feature map resolution for downstream decoding.
+        self.grid_size = grid_h
         return pred, features
 
 
-def decode_predictions(pred: torch.Tensor, anchors: torch.Tensor, num_classes: int, grid_size: int, img_size: int):
+def decode_predictions(pred: torch.Tensor, anchors: torch.Tensor, num_classes: int, img_size: int):
     batch_size = pred.size(0)
     device = pred.device
-    stride = img_size / grid_size
+    grid_h, grid_w = pred.size(2), pred.size(3)
+    stride = img_size / grid_w
 
-    grid_y, grid_x = torch.meshgrid(torch.arange(grid_size, device=device), torch.arange(grid_size, device=device), indexing="ij")
-    grid_x = grid_x.view(1, 1, grid_size, grid_size)
-    grid_y = grid_y.view(1, 1, grid_size, grid_size)
+    grid_y, grid_x = torch.meshgrid(
+        torch.arange(grid_h, device=device), torch.arange(grid_w, device=device), indexing="ij"
+    )
+    grid_x = grid_x.view(1, 1, grid_h, grid_w)
+    grid_y = grid_y.view(1, 1, grid_h, grid_w)
 
     pred = pred.sigmoid()
     box_xy = pred[..., 0:2]

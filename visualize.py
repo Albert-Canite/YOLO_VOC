@@ -77,7 +77,7 @@ def visualize_samples(
         image, target = dataset[idx]
         with torch.no_grad():
             pred, _ = model(image.unsqueeze(0).to(device))
-            boxes, scores = decode_predictions(pred, model.anchors, cfg.model.num_classes, cfg.model.grid_size, cfg.data.image_size)
+            boxes, scores = decode_predictions(pred, model.anchors, cfg.model.num_classes, cfg.data.image_size)
         box = boxes[0]
         score, cls = scores[0].max(dim=1)
         keep = score > 0.25
