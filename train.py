@@ -1,12 +1,19 @@
 """Entry point for training TinyYOLO on VOC."""
 import argparse
+import copy
 import json
 import os
 from datetime import datetime
 
 import torch
 
-from config import DEFAULT_CONFIG, TrainConfig
+from config import (
+    DEFAULT_CONFIG,
+    DataConfig,
+    ModelConfig,
+    OptimConfig,
+    TrainConfig,
+)
 from src.utils.engine import train
 
 
@@ -18,10 +25,19 @@ def parse_args():
 
 def load_config(path: str | None) -> TrainConfig:
     if path is None:
-        return DEFAULT_CONFIG
+        return copy.deepcopy(DEFAULT_CONFIG)
     with open(path, "r", encoding="utf-8") as f:
         data = json.load(f)
-    cfg = TrainConfig(**data)
+    cfg = TrainConfig(
+        data=DataConfig(**data.get("data", {})),
+        model=ModelConfig(**data.get("model", {})),
+        optim=OptimConfig(**data.get("optim", {})),
+        mixed_precision=data.get("mixed_precision", DEFAULT_CONFIG.mixed_precision),
+        save_dir=data.get("save_dir", DEFAULT_CONFIG.save_dir),
+        checkpoint_interval=data.get(
+            "checkpoint_interval", DEFAULT_CONFIG.checkpoint_interval
+        ),
+    )
     return cfg
 
 
