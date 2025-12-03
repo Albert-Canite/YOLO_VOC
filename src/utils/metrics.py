@@ -49,11 +49,14 @@ def yolo_loss(pred: torch.Tensor, targets: List[dict], anchors: torch.Tensor, nu
         boxes_xywh[:, 1] = (boxes_xyxy[:, 1] + boxes_xyxy[:, 3]) / 2
         boxes_xywh[:, 2] = boxes_xyxy[:, 2] - boxes_xyxy[:, 0]
         boxes_xywh[:, 3] = boxes_xyxy[:, 3] - boxes_xyxy[:, 1]
+
         gxy = boxes_xywh[:, 0:2] / stride
-        gwh = boxes_xywh[:, 2:4] / anchors
+        anchor_targets = boxes_xywh[:, 2:4].unsqueeze(1) / anchors.view(1, -1, 2)
+        best_anchor_scores = anchor_targets.max(dim=2).values
+        anchor_idxs = torch.argmax(best_anchor_scores, dim=1)
+
         ij = gxy.long()
         i, j = ij[:, 0], ij[:, 1]
-        anchor_idxs = torch.argmax(gwh, dim=1)
         obj_mask[batch_idx, anchor_idxs, j, i] = 1
         noobj_mask[batch_idx, anchor_idxs, j, i] = 0
         tx[batch_idx, anchor_idxs, j, i] = gxy[:, 0] - i
