@@ -61,8 +61,10 @@ def yolo_loss(pred: torch.Tensor, targets: List[dict], anchors: torch.Tensor, nu
         eps = torch.tensor(torch.finfo(dtype).eps, device=device, dtype=dtype)
         tw_vals = (boxes_xywh[:, 2] / anchors[anchor_idxs, 0]).clamp_min(eps)
         th_vals = (boxes_xywh[:, 3] / anchors[anchor_idxs, 1]).clamp_min(eps)
-        tw[batch_idx, anchor_idxs, j, i] = torch.log(tw_vals)
-        th[batch_idx, anchor_idxs, j, i] = torch.log(th_vals)
+        tw_log = torch.log(tw_vals).to(dtype)
+        th_log = torch.log(th_vals).to(dtype)
+        tw[batch_idx, anchor_idxs, j, i] = tw_log
+        th[batch_idx, anchor_idxs, j, i] = th_log
         tcls[batch_idx, anchor_idxs, j, i, labels] = 1
 
     pred_x = torch.sigmoid(pred[..., 0])
