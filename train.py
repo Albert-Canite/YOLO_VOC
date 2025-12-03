@@ -4,6 +4,7 @@ import copy
 import json
 import os
 from datetime import datetime
+from typing import Optional
 
 import torch
 
@@ -23,7 +24,7 @@ def parse_args():
     return parser.parse_args()
 
 
-def load_config(path: str | None) -> TrainConfig:
+def load_config(path: Optional[str]) -> TrainConfig:
     if path is None:
         return copy.deepcopy(DEFAULT_CONFIG)
     with open(path, "r", encoding="utf-8") as f:
