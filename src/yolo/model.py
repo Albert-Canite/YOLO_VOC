@@ -1,65 +1,81 @@
-"""Lightweight YOLO model definition and loss."""
+"""PyTorch implementation of a compact YOLO-style detector."""
 from __future__ import annotations
 
-from typing import List, Tuple
+from typing import Sequence, Tuple
 
 import torch
 import torch.nn as nn
 
 
-class ConvBlock(nn.Module):
+class ConvBNAct(nn.Module):
+    """Convolution + BatchNorm + SiLU activation."""
+
     def __init__(self, in_channels: int, out_channels: int, k: int = 3, s: int = 1, p: int = 1):
         super().__init__()
-        self.conv = nn.Conv2d(in_channels, out_channels, kernel_size=k, stride=s, padding=p, bias=False)
-        self.bn = nn.BatchNorm2d(out_channels)
-        self.act = nn.LeakyReLU(0.1, inplace=True)
+        self.block = nn.Sequential(
+            nn.Conv2d(in_channels, out_channels, kernel_size=k, stride=s, padding=p, bias=False),
+            nn.BatchNorm2d(out_channels),
+            nn.SiLU(inplace=True),
+        )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return self.act(self.bn(self.conv(x)))
+        return self.block(x)
 
 
-class YOLOSmallNet(nn.Module):
-    """A compact YOLO-style network for VOC detection."""
+class CSPBlock(nn.Module):
+    """A tiny CSP-like block for lightweight feature reuse."""
 
-    def __init__(self, num_classes: int, anchors: List[Tuple[int, int]], grid_size: int) -> None:
+    def __init__(self, channels: int):
+        super().__init__()
+        hidden = channels // 2
+        self.conv1 = ConvBNAct(channels, hidden, k=1, p=0)
+        self.conv2 = ConvBNAct(hidden, channels, k=3, p=1)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        shortcut = x
+        x = self.conv1(x)
+        x = self.conv2(x)
+        return x + shortcut
+
+
+class YOLOTiny(nn.Module):
+    """Compact detector with a single detection scale."""
+
+    def __init__(self, num_classes: int, anchors: Sequence[Tuple[int, int]], grid_size: int) -> None:
         super().__init__()
         self.num_classes = num_classes
         self.anchors = anchors
         self.grid_size = grid_size
-        self.features = nn.Sequential(
-            ConvBlock(3, 16),
-            nn.MaxPool2d(2, 2),
-            ConvBlock(16, 32),
-            nn.MaxPool2d(2, 2),
-            ConvBlock(32, 64),
-            nn.MaxPool2d(2, 2),
-            ConvBlock(64, 128),
-            nn.MaxPool2d(2, 2),
-            ConvBlock(128, 256),
-            nn.MaxPool2d(2, 2),
-            ConvBlock(256, 512),
-            nn.MaxPool2d(2, 2),
-            ConvBlock(512, 1024),
-            ConvBlock(1024, 512, k=1, p=0),
-            ConvBlock(512, 1024),
+
+        self.stem = nn.Sequential(
+            ConvBNAct(3, 32, k=3, s=2, p=1),
+            ConvBNAct(32, 64, k=3, s=2, p=1),
+            CSPBlock(64),
+            ConvBNAct(64, 128, k=3, s=2, p=1),
+            CSPBlock(128),
+            ConvBNAct(128, 256, k=3, s=2, p=1),
+            CSPBlock(256),
+            ConvBNAct(256, 512, k=3, s=2, p=1),
+            CSPBlock(512),
         )
         out_channels = len(anchors) * (5 + num_classes)
-        self.detect = nn.Conv2d(1024, out_channels, kernel_size=1)
+        self.detect = nn.Conv2d(512, out_channels, kernel_size=1)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         b = x.size(0)
-        x = self.features(x)
-        x = self.detect(x)
-        x = x.view(b, len(self.anchors), 5 + self.num_classes, self.grid_size, self.grid_size)
-        return x.permute(0, 1, 3, 4, 2)  # (B, anchors, S, S, 5+C)
+        feats = self.stem(x)
+        pred = self.detect(feats)
+        pred = pred.view(b, len(self.anchors), 5 + self.num_classes, self.grid_size, self.grid_size)
+        return pred.permute(0, 1, 3, 4, 2)  # (B, anchors, S, S, 5+C)
 
 
-class YoloLoss(nn.Module):
-    def __init__(self, num_classes: int, lambda_box: float = 5.0, lambda_obj: float = 1.0, lambda_noobj: float = 0.5):
+class DetectionLoss(nn.Module):
+    """YOLO-style loss combining localization, objectness, and classification."""
+
+    def __init__(self, lambda_box: float = 5.0, lambda_obj: float = 1.0, lambda_noobj: float = 0.5) -> None:
         super().__init__()
-        self.num_classes = num_classes
-        self.mse = nn.MSELoss(reduction="mean")
         self.bce = nn.BCEWithLogitsLoss(reduction="mean")
+        self.mse = nn.MSELoss(reduction="mean")
         self.lambda_box = lambda_box
         self.lambda_obj = lambda_obj
         self.lambda_noobj = lambda_noobj
@@ -78,11 +94,12 @@ class YoloLoss(nn.Module):
         target_obj = targets[..., 4]
         target_cls = targets[..., 5:]
 
-        box_loss = self.mse(torch.sigmoid(pred_xy)[obj_mask], target_xy[obj_mask])
+        xy_loss = self.mse(torch.sigmoid(pred_xy)[obj_mask], target_xy[obj_mask])
         wh_loss = self.mse(pred_wh[obj_mask], target_wh[obj_mask])
         obj_loss = self.bce(pred_obj[obj_mask], target_obj[obj_mask])
         noobj_loss = self.bce(pred_obj[noobj_mask], target_obj[noobj_mask])
-        class_loss = self.bce(pred_cls[obj_mask], target_cls[obj_mask])
+        cls_loss = self.bce(pred_cls[obj_mask], target_cls[obj_mask])
 
-        loss = self.lambda_box * (box_loss + wh_loss) + self.lambda_obj * obj_loss + self.lambda_noobj * noobj_loss + class_loss
+        loss = self.lambda_box * (xy_loss + wh_loss) + self.lambda_obj * obj_loss + self.lambda_noobj * noobj_loss + cls_loss
         return loss
+
