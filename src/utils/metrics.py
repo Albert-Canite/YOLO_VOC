@@ -74,14 +74,13 @@ def yolo_loss(pred: torch.Tensor, targets: List[dict], anchors: torch.Tensor, nu
     pred_y = torch.sigmoid(pred[..., 1])
     pred_w = pred[..., 2]
     pred_h = pred[..., 3]
-    pred_obj = torch.sigmoid(pred[..., 4])
     pred_cls = pred[..., 5:]
 
     loss_x = F.mse_loss(pred_x * obj_mask, tx, reduction="sum")
     loss_y = F.mse_loss(pred_y * obj_mask, ty, reduction="sum")
     loss_w = F.mse_loss(pred_w * obj_mask, tw, reduction="sum")
     loss_h = F.mse_loss(pred_h * obj_mask, th, reduction="sum")
-    loss_obj = F.binary_cross_entropy(pred_obj, obj_mask, reduction="sum")
+    loss_obj = F.binary_cross_entropy_with_logits(pred[..., 4], obj_mask, reduction="sum")
     loss_cls = F.binary_cross_entropy_with_logits(pred_cls, tcls, reduction="sum")
     total = loss_x + loss_y + loss_w + loss_h + loss_obj + loss_cls
     return total / pred.size(0)
