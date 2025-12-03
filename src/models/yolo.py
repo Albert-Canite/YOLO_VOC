@@ -1,5 +1,5 @@
 """A lightweight YOLO-style network for VOC."""
-from typing import Tuple
+from typing import Optional, Tuple
 
 import torch
 import torch.nn as nn
@@ -22,7 +22,7 @@ class ConvBlock(nn.Module):
 class TinyYOLO(nn.Module):
     """Small YOLO network with a single detection head."""
 
-    def __init__(self, num_classes: int, anchors: torch.Tensor, grid_size: int | None = None) -> None:
+    def __init__(self, num_classes: int, anchors: torch.Tensor, grid_size: Optional[int] = None) -> None:
         super().__init__()
         self.num_classes = num_classes
         self.num_anchors = anchors.size(0)
