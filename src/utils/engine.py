@@ -12,7 +12,7 @@ from torch.utils.data import DataLoader
 from config import TrainConfig
 from src.datasets.voc import VOCDataset, detection_collate
 from src.models.yolo import TinyYOLO, decode_predictions
-from src.utils.metrics import evaluate_map, non_max_suppression, yolo_loss
+from src.utils.metrics import bbox_iou, evaluate_map, non_max_suppression, yolo_loss
 
 
 def build_model(cfg: TrainConfig) -> TinyYOLO:
@@ -106,13 +106,35 @@ def predict(model: TinyYOLO, images: torch.Tensor, cfg: TrainConfig, device: tor
 def evaluate(model: TinyYOLO, loader: DataLoader, cfg: TrainConfig, device: torch.device):
     all_predictions: List = []
     all_targets: List = []
+    best_ious: List[torch.Tensor] = []
     for images, targets in loader:
         images = images.to(device)
         preds = predict(model, images, cfg, device)
         all_predictions.extend([(p[0].cpu(), p[1].cpu(), p[2].cpu()) for p in preds])
         all_targets.extend(targets)
+
+        # Collect per-prediction IoU diagnostics to help debug zero-mAP situations.
+        for pred, target in zip(preds, targets):
+            boxes, _, _ = pred
+            gt_boxes = target["boxes"].to(device)
+            if boxes.numel() == 0:
+                continue
+            if gt_boxes.numel() == 0:
+                best_ious.append(torch.zeros((boxes.size(0),), device=device))
+                continue
+            pairwise_iou = bbox_iou(boxes.unsqueeze(1), gt_boxes.unsqueeze(0)).squeeze(-1)
+            best_ious.append(pairwise_iou.max(dim=1).values)
+
     map50 = evaluate_map(all_predictions, all_targets, cfg.model.num_classes, iou_threshold=0.5)
-    return map50
+    mean_pred_iou = torch.cat(best_ious).mean().item() if best_ious else 0.0
+    num_predictions = int(sum(p[0].size(0) for p in all_predictions))
+    num_gt = int(sum(t["boxes"].size(0) for t in all_targets))
+    diagnostics = {
+        "mean_pred_iou": mean_pred_iou,
+        "num_predictions": num_predictions,
+        "num_gt": num_gt,
+    }
+    return map50, diagnostics
 
 
 def train(cfg: TrainConfig):
@@ -126,14 +148,26 @@ def train(cfg: TrainConfig):
     )
     scaler = amp.GradScaler(enabled=cfg.mixed_precision)
     train_loader, val_loader = prepare_dataloaders(cfg)
-    history: Dict[str, List[float]] = {"train_loss": [], "map50": []}
+    history: Dict[str, List[float]] = {"train_loss": [], "map50": [], "mean_pred_iou": []}
 
     for epoch in range(1, cfg.optim.epochs + 1):
         train_loss = run_epoch(model, train_loader, optimizer, scaler, cfg, device, train=True)
-        map50 = evaluate(model, val_loader, cfg, device)
+        map50, diagnostics = evaluate(model, val_loader, cfg, device)
         history["train_loss"].append(train_loss)
         history["map50"].append(map50)
-        print(f"Epoch {epoch}/{cfg.optim.epochs} - loss: {train_loss:.4f} - mAP@50: {map50:.4f}")
+        history["mean_pred_iou"].append(diagnostics["mean_pred_iou"])
+        print(
+            "Epoch {}/{} - loss: {:.4f} - mAP@50: {:.4f} - mean IoU (pred->GT): {:.4f} "
+            "- preds: {} - gt: {}".format(
+                epoch,
+                cfg.optim.epochs,
+                train_loss,
+                map50,
+                diagnostics["mean_pred_iou"],
+                diagnostics["num_predictions"],
+                diagnostics["num_gt"],
+            )
+        )
         if epoch % cfg.checkpoint_interval == 0:
             save_checkpoint(model, optimizer, epoch, cfg.save_dir)
     os.makedirs(cfg.save_dir, exist_ok=True)

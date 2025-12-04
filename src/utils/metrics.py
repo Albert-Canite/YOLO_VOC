@@ -94,8 +94,15 @@ def non_max_suppression(boxes: torch.Tensor, scores: torch.Tensor, iou_threshold
         keep.append(idx.item())
         if order.numel() == 1:
             break
-        ious = bbox_iou(boxes[idx].unsqueeze(0), boxes[order[1:]])
-        order = order[1:][ious.squeeze(0) < iou_threshold]
+        remaining = order[1:]
+        if remaining.numel() == 0:
+            break
+        boxes_rem = boxes[remaining]
+        if boxes_rem.dim() == 1:
+            boxes_rem = boxes_rem.unsqueeze(0)
+        ious = bbox_iou(boxes[idx].unsqueeze(0), boxes_rem)
+        iou_mask = ious.view(-1) < iou_threshold
+        order = remaining[iou_mask]
     return keep
 
 
